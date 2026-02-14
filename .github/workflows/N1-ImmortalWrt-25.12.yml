@@ -93,11 +93,11 @@ jobs:
     - name: Package N1 firmware
       uses: unifreq/openwrt_packit@master
       env:
-        OPENWRT_ARMVIRT: openwrt/bin/targets/N1-25.12/*rootfs.tar.gz
+        OPENWRT_ARMVIRT: openwrt/bin/targets/N1-25.12/*rootfs.tar.xz
         KERNEL_REPO_URL: breakingbadboy/OpenWrt
         KERNEL_VERSION_NAME: 6.12.y
         PACKAGE_SOC: diy
-        GZIP_IMGS: .gz
+        GZIP_IMGS: .xz
         SCRIPT_DIY_PATH: diy/mk_s905d_n1.sh
         WHOAMI: keko
         SW_FLOWOFFLOAD: 0
@@ -107,7 +107,7 @@ jobs:
       uses: softprops/action-gh-release@master
       with:
         tag_name: OpenWrt_${{ env.FILE_DATE }}
-        files: ${{ env.PACKAGED_OUTPUTPATH }}/*.img.gz
+        files: ${{ env.PACKAGED_OUTPUTPATH }}/*.img.xz
         body: |
           首次使用建议全新刷写
           * 基本信息

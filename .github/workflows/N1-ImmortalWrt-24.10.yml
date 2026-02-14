@@ -1,4 +1,4 @@
-name: N1-ImmortalWrt-24.10
+name: Build ImmortalWrt-24.10 for N1
 
 on:
   workflow_dispatch:

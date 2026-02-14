@@ -60,17 +60,17 @@ jobs:
 
     - name: Update & Install feeds
       run: |
-        chmod +x armsr/armv8/diy/diy.sh
+        chmod +x diy/diy.sh
         cd openwrt
         ./scripts/feeds update -a
-        $GITHUB_WORKSPACE/armsr/armv8/diy/diy.sh
+        $GITHUB_WORKSPACE/diy/diy.sh
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
     - name: Load N1 custom config
       run: |
         rm -rf openwrt/files openwrt/.config
-        mv armsr/armv8/N1/files armsr/armv8/N1/.config openwrt/
+        mv N1-25.12/files N1-25.12/.config openwrt/
 
     - name: SSH connect to Actions
       uses: P3TERX/ssh2actions@main
@@ -93,13 +93,13 @@ jobs:
     - name: Package N1 firmware
       uses: unifreq/openwrt_packit@master
       env:
-        OPENWRT_ARMVIRT: openwrt/bin/targets/armsr/armv8/*rootfs.tar.gz
+        OPENWRT_ARMVIRT: openwrt/bin/targets/N1-25.12/*rootfs.tar.gz
         KERNEL_REPO_URL: breakingbadboy/OpenWrt
         KERNEL_VERSION_NAME: 6.12.y
         PACKAGE_SOC: diy
-        GZIP_IMGS: .xz
-        SCRIPT_DIY_PATH: armsr/armv8/N1/mk_s905d_n1.sh
-        WHOAMI: nantayo
+        GZIP_IMGS: .gz
+        SCRIPT_DIY_PATH: diy/mk_s905d_n1.sh
+        WHOAMI: keko
         SW_FLOWOFFLOAD: 0
         SFE_FLOW: 0
 
@@ -118,5 +118,5 @@ jobs:
     - name: Delete old releases
       uses: dev-drprasad/delete-older-releases@master
       with:
-        keep_latest: 2
+        keep_latest: 10
         delete_tags : true

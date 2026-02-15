@@ -2,166 +2,140 @@ name: Build ImmortalWrt-24.10 for N1
 
 on:
   workflow_dispatch:
-  repository_dispatch:
-    types:
-      - N1-ImmortalWrt-24.10
+   inputs:
+      ssh:
+        description: 'SSH connection to Actions'
+        required: false
+        default: 'false'
+#  schedule:
+#    - cron: "0 0 1,16 * *"
+
+env:
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: openwrt-24.10
+  CONFIG_FILE: N1-25.12/.config
+  DIY_SH: diy/diy.sh
+  FILES: N1-25.12/files
+  TZ: Asia/Shanghai
+  GITHUB_TOKEN: ${{ secrets.TOKEN }}
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
-    if: github.event.repository.owner.id == github.event.sender.id
+    runs-on: ubuntu-22.04
 
     steps:
-    - name: Show system
-      run: |
-        echo -e "💬 Server information \n"
-        echo -e "💻 Server running on Ubuntu: [ Release: $(cat /etc/os-release | grep VERSION_CODENAME | cut -d '=' -f2) / Host: $(arch) ] \n"
-        echo -e "🧮 Server CPU configuration information: \n$(cat /proc/cpuinfo | grep name | cut -f2 -d: | uniq -c) \n"
-        echo -e "💾 Server memory usage: \n$(free -h) \n"
-        echo -e "🗃️ Server space usag: \n$(df -hT ${{ github.workspace }}) \n"
+    - name: 准备完成
+      uses: actions/checkout@main
 
-    - name: Maximize build space
-      uses: easimon/maximize-build-space@master
+    - name: 释放磁盘空间
+      uses: jlumbroso/free-disk-space@main
       with:
-        swap-size-mb: 1024
-        temp-reserve-mb: 512
-        root-reserve-mb: 4608
-        remove-dotnet: 'true'
-        remove-android: 'true'
-        remove-haskell: 'true'
-        remove-codeql: 'true'
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
 
-    - name: Checkout
-      uses: actions/checkout@v6
-
-    - name: Init build dependencies
+    - name: 初始化编译环境
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        #docker rmi -f $(docker images -q) 2>/dev/null || true
-        [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
-        sudo rm -rf /usr/share/dotnet /usr/local/lib/android 2>/dev/null
-        sudo -E apt-get -y update
-        sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
-        sudo -E apt-get -y install ack antlr3 aria2 asciidoc autoconf automake autopoint binutils bison btrfs-progs build-essential bzip2 ca-certificates \
-          ccache clang cmake coreutils cpio curl device-tree-compiler ecj fakeroot fastjar flex g++-multilib gawk gcc-multilib genisoimage \
-          gettext git gnutls-dev gperf gzip haveged help2man intltool irqbalance jq lib32gcc-s1 libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev \
-          libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libncurses5-dev libncursesw5-dev libnsl-dev libpython3-dev libreadline-dev \
-          libssl-dev libtool libyaml-dev libz-dev llvm lrzsz msmtp nano ninja-build ntpdate p7zip p7zip-full patch pigz pkgconf python3 python3-cryptography \
-          python3-docutils python3-pip python3-ply python3-pyelftools python3-requests python3-setuptools qemu-utils quilt re2c rsync scons sharutils \
-          squashfs-tools subversion swig tar texinfo uglifyjs unzip upx-ucl vim wget xmlto xsltproc xxd xz-utils yasm zip zlib1g-dev zstd
-        sudo -E systemctl daemon-reload
-        #sudo -E apt-get -y full-upgrade
-        sudo -E apt-get -y autoremove --purge
-        sudo -E apt-get clean
-        sudo rm -rf ~/{.cargo,.dotnet,.rustup}
-        df -h
+        sudo -E apt-get -qq update -y
+        sudo -E apt-get -qq install -y $(curl -fsSL https://raw.githubusercontent.com/nantayo/My-Pkg/master/2410)
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
 
-    - name: Prepare source code
+    - name: 克隆源码
+      working-directory: /workdir
       run: |
-        sudo chown -R runner:runner /home/runner/work/build_openwrt
-        cp -r ./scripts/immortalwrt-24.10/. ./
-        ./01_prepare_source_code.sh
-        mkdir -p /home/runner/work/build_openwrt/build_openwrt/amlogic
-        ln -sf /home/runner/work/build_openwrt/build_openwrt/amlogic /home/runner/work/_actions/ffuqiangg/amlogic-s9xxx-openwrt/main/openwrt
+        git clone $REPO_URL -b $REPO_BRANCH --single-branch --depth=1 openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
-    - name: Prepare package
-      working-directory: ${{ github.workspace }}/openwrt
-      run: |
-        cp -r ../scripts/immortalwrt-24.10/. ./
-        ./02_prepare_package.sh "${{ env.latest_release }}" "${{ env.build_date }}"
-        ../scripts/03_move_2_services.sh
-
-    - name: Make config
-      working-directory: ${{ github.workspace }}/openwrt
-      run: |
-        cp ../config/immortalwrt-24.10/config.seed .config
-        #../scripts/05_fix_permissions.sh
-        #echo '==============================================='
-        make defconfig
-
-    - name: Cache
-      uses: HiGarfield/cachewrtbuild@main
+    - name: 缓存构建动作
+      uses: stupidloud/cachewrtbuild@main
       with:
-        mixkey: ImmortalWrt-24.10
+        ccache: 'true'
+        mixkey: N1-${{ env.REPO_BRANCH }}
         prefix: ${{ github.workspace }}/openwrt
 
-    - name: Download package
-      working-directory: ${{ github.workspace }}/openwrt
+    - name: 更新及安装 feeds
+      working-directory: ./openwrt
       run: |
-        make download -j$(($(nproc) + 1))
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
 
-    - name: Compile the firmware
-      working-directory: ${{ github.workspace }}/openwrt
-      id: compileopenwrt
-      continue-on-error: true
+    - name: 加载自定义配置
       run: |
-        IGNORE_ERRORS=1 make -j$(($(nproc) + 1))
-        echo $?
+        [ -e $FILES ] && mv $FILES openwrt/files
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        chmod +x $DIY_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$DIY_SH
 
-    - name: If error
-      if: steps.compileopenwrt.outcome == 'failure'
-      working-directory: ${{ github.workspace }}/openwrt
+    - name: SSH 连接到 Actions
+      uses: P3TERX/ssh2actions@main
+      if: (github.event.inputs.ssh == 'true') || contains(github.event.action, 'ssh')
+
+    - name: 下载软件包
+      working-directory: ./openwrt
       run: |
-        cat ./.config
-        echo '==============================================='
-        make -j1 V=s
+        make defconfig
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
 
-    - name: Upload firmware directory
-      uses: actions/upload-artifact@main
-      with:
-        name: OpenWrt_rootfs_${{ env.build_date }}
-        path: openwrt/bin
-
-    - name: Packit firmware
-      uses: ffuqiangg/amlogic-s9xxx-openwrt@main
-      with:
-        openwrt_path: openwrt/bin/targets/*/*/*rootfs.tar.gz
-        openwrt_board: s905d
-        kernel_repo: ffuqiangg/kernel_6.6.y
-        openwrt_kernel: ${{ env.kernel_version }}
-        kernel_usage: stable
-        auto_kernel: false
-        openwrt_size: 820
-        openwrt_ip: 192.168.1.99
-        build_date: ${{ env.build_date }}
-
-    - name: Organize files
+    - name: 编译固件
       run: |
-        if [[ "${{ github.event_name }}" == 'repository_dispatch' ]]; then
-          echo "prerelease_symbol=false" >> $GITHUB_ENV
-          sed -i '1,/cutline/d' ./doc/release.md
-        else
-          echo "prerelease_symbol=true" >> $GITHUB_ENV
-          sed -i '/cutline/,$d' ./doc/release.md
-        fi
-        rm -rf ./artifact/
-        mkdir -p ./artifact/
-        cp ${{ env.PACKAGED_OUTPUTPATH }}/*.img.gz ./artifact/
-        cd ./artifact/
-        zip N1-ImmortalWrt-${{ env.latest_release }}-${{ env.build_date }}.zip *.img.gz
-        rm -rf /home/runner/work/build_openwrt/build_openwrt/amlogic
+        chmod -R 755 openwrt
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+        echo "compile_status=success" >> $GITHUB_ENV
 
-    - name: Upload firmware to release
+    - name: 打包镜像文件
+      if: ${{ env.compile_status == 'success' && github.action_status != 'cancelled' }}
+      uses: unifreq/openwrt_packit@master
+      env:
+        OPENWRT_ARMVIRT: openwrt/bin/targets/*/*/*.tar.gz
+        KERNEL_REPO_URL: https://github.com/breakings/OpenWrt/releases/tag/kernel_stable
+        KERNEL_VERSION_NAME: 5.15.148
+        # KERNEL_REPO_URL: https://github.com/breakingbadboy/OpenWrt/releases/tag/kernel_stable
+        # KERNEL_VERSION_NAME: 5.15.196
+        KERNEL_AUTO_LATEST: false
+        PACKAGE_SOC: s905d
+        WHOAMI: keko
+        SW_FLOWOFFLOAD: 1
+        SFE_FLOW: 0
+
+    - name: 上传 OpenWrt 固件到 Release
       uses: ncipollo/release-action@main
+      if: ${{ env.PACKAGED_STATUS == 'success' && github.action_status != 'cancelled' }}
+      with:
+        tag: immortalwrt_N1_${{ env.PACKAGED_OUTPUTDATE }}
+        artifacts: /opt/openwrt_packit/output/*
+        allowUpdates: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+        body: |
+          基于immortalwrt openwrt构建的斐讯N1固件（24.10源码）
+          * 登录信息
+          IP: 192.168.2.254
+          账户: root
+          密码: password
+          * 使用方法
+          首次使用建议全新刷写。
+          安装固件：先写入U盘用并插入U盘启动后，再输入命令openwrt-install-amlogic，按照英文提示写入到emmc。
+          或在路由器TTYD终端使用install-to-emmc.sh命令全新刷入emmc。
+          更新固件：将固件放在/mnt/mmcblk2p4/目录下，在路由器TTYD终端输入openwrt-update-amlogic命令可直接更新。
+
+    - name: 删除发布的旧固件
+      uses: dev-drprasad/delete-older-releases@master
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag: ${{ env.build_date }}
-        allowUpdates: true
-        replacesArtifacts: true
-        prerelease: ${{ env.prerelease_symbol }}
-        artifacts: ./artifact/*.zip
-        bodyFile: ./doc/release.md
-
-    - name: telegram notification
-      if: github.event_name == 'repository_dispatch'
-      run: |
-        firmware_num="$(curl -fsSL https://github.com/ffuqiangg/build_openwrt/releases/expanded_assets/${{ env.build_date }} | grep -oE "N1-.*.zip" | sort -u | wc -l)"
-        MSG="
-        *${{ env.build_date }}* 固件编译完成
-        https://github.com/ffuqiangg/build\_openwrt/releases/tag/${{ env.build_date }}
-        "
-        if [[ "${firmware_num}" == 7 ]]; then
-          curl "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" -d "chat_id=${{ secrets.TELEGRAM_TO }}&text=${MSG}&parse_mode=MarkDown&disable_web_page_preview=false"
-        fi
+        keep_latest: 10
+        delete_tags : true

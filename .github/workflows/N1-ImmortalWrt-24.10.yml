@@ -41,11 +41,12 @@ jobs:
     - name: 初始化编译环境
       env:
         DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo -E apt-get -qq update -y
-        sudo -E apt-get -qq install -y $(curl -fsSL https://raw.githubusercontent.com/nantayo/My-Pkg/master/2410)
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
+run: |
+        sudo -E apt-get -qq update > /dev/null
+        sudo -E apt-get -qq install -y $(curl -fsSL https://raw.githubusercontent.com/nantayo/My-Pkg/master/openwrt) > /dev/null
+        sudo -E apt-get -qq autoremove --purge > /dev/null
+        sudo -E apt-get -qq install build-essential libssl-dev libncurses5-dev zlib1g-dev gawk flex quilt libelf-dev bc > /dev/null
+        sudo -E apt-get -qq clean > /dev/null
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir

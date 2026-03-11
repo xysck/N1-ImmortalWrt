@@ -41,7 +41,7 @@ jobs:
     - name: 初始化编译环境
       env:
         DEBIAN_FRONTEND: noninteractive
-run: |
+      run: |
         sudo -E apt-get -qq update > /dev/null
         sudo -E apt-get -qq install -y $(curl -fsSL https://raw.githubusercontent.com/nantayo/My-Pkg/master/openwrt) > /dev/null
         sudo -E apt-get -qq autoremove --purge > /dev/null

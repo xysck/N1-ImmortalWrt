@@ -14,11 +14,10 @@ function git_sparse_clone() {
 patch -p1 -f < $(dirname "$0")/luci.patch
 
 # Add packages
-git clone https://github.com/ophub/luci-app-amlogic --depth=1 clone/amlogic
-git_sparse_clone main https://github.com/kenzok8/openwrt-packages luci-app-adguardhome
+git_sparse_clone master https://github.com/kenzok8/openwrt-packages luci-app-adguardhome
 git clone https://github.com/Openwrt-Passwall/openwrt-passwall --depth=1 clone/passwall
 git clone https://github.com/DustReliant/luci-app-filetransfer.git package/luci-app-filetransfer
-git_sparse_clone main https://github.com/kenzok8/openwrt-packages luci-app-fileassistant
+git_sparse_clone master https://github.com/kenzok8/openwrt-packages luci-app-fileassistant
 
 # Update packages
 rm -rf feeds/luci/applications/luci-app-passwall
